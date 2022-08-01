@@ -9,7 +9,7 @@ import (
 
 func main() {
 	app := &cli.App{
-		Name:    "incognito-cli",
+		Name:    "my-incognito-cli",
 		Usage:   "A simple CLI application for the Incognito network",
 		Version: "v1.0.0",
 		Description: "A simple CLI application for the Incognito network. With this tool, you can run some basic functions" +
