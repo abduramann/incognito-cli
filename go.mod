@@ -18,6 +18,5 @@ require (
 	gopkg.in/check.v1 v1.0.0-20200902074654-038fdea0a05b // indirect
 )
 
-replace github.com/incognitochain/go-incognito-sdk-v2 => github.com/abduramann/go-incognito-sdk-v2 v0.0.0-20220622114107-4942574dbe0c
+replace github.com/incognitochain/go-incognito-sdk-v2 => ../go-incognito-sdk-v2 
 
-replace github.com/incognitochain/incognito-cli => github.com/abduramann/incognito-cli v0.0.0-20220628025959-356001bd6045
