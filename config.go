@@ -214,7 +214,7 @@ func NewLocalConfig(incClient *incclient.IncClient) error {
 		if cache == 0 {
 			incClient, err = incclient.NewLocalClient("")
 		} else {
-			incClient, err = incclient.NewLocalClientWithCache()
+			incClient, err = incclient.NewLocalClientWithCache("")
 		}
 		if err != nil {
 			return err
