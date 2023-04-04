@@ -363,6 +363,17 @@ var evmBridgeCommands = &cli.Command{
 			Action: retryShield,
 			Before: defaultBeforeFunc,
 		},
+                {
+                        Name:        "unshieldu",
+                        Usage:       "Unified unshield.",
+                        Description: "Unified unshield.",
+                        Flags: []cli.Flag{
+                                defaultFlags[externalTxIDFlag],
+                                defaultFlags[evmFlag],
+                        },
+                        Action: unShieldUnified,
+                        Before: defaultBeforeFunc,
+                },
 		{
 			Name:        "unshield",
 			Usage:       "Withdraw an EVM (ETH/BNB/ERC20/BEP20) token from the Incognito network.",

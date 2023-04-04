@@ -261,6 +261,109 @@ func retryShield(c *cli.Context) error {
 }
 
 // unShield withdraws an EVM token (ETH/BNB/ERC20/BEP20) from the Incognito chain.
+func unShieldUnified(c *cli.Context) error {
+        fmt.Println("Unified Unshielding starts...")
+
+        log.Println("[STEP 0] PREPARE DATA")
+        // get the private key
+        incTxHash := c.String(externalTxIDFlag)
+
+                burnProofx, err := cfg.incClient.GetUnifiedBurnProof(incTxHash)
+                if burnProofx == nil || err != nil {
+                        log.Println("Wait for the burn proof!")
+                } else {
+                        log.Println("Had the burn proof!!!")
+                }
+
+
+	evmNetwork := c.String(evmFlag)
+	var evmNetworkID int
+	var nativeTokenName string
+	if strings.Contains(evmNetwork, "bsc") {
+		evmNetworkID = rpc.BSCNetworkID
+		nativeTokenName = "BNB"
+	} else if strings.Contains(evmNetwork, "plg") {
+		evmNetworkID = rpc.PLGNetworkID
+		nativeTokenName = "MATIC"
+	} else if strings.Contains(evmNetwork, "ftm") {
+		evmNetworkID = rpc.FTMNetworkID
+		nativeTokenName = "FTM"
+	} else if strings.Contains(evmNetwork, "eth") {
+                evmNetworkID = rpc.ETHNetworkID
+		nativeTokenName = "ETH"
+        }
+
+	log.Printf("Network: %v, Tx Id: %v", evmNetwork, incTxHash)
+
+        yesNoPrompt("Do you want to continue?")
+        log.Printf("[STEP 0] FINISHED!\n\n")
+
+	log.Printf("[STEP 1] IMPORT %v ACCOUNT\n", evmNetwork)
+        // Get EVM account
+        var privateEVMKey string
+        input, err := promptInput(fmt.Sprintf("Enter your %v private key", evmNetwork), &privateEVMKey, true)
+        if err != nil {
+                return newAppError(UserInputError, err)
+        }
+        privateEVMKey = string(input)
+        acc, err := NewEVMAccount(privateEVMKey)
+        if err != nil {
+                return newAppError(NewEVMAccountError, err)
+        }
+        _, tmpNativeBalance, err := acc.getBalance(common.HexToAddress(nativeToken), evmNetworkID)
+        if err != nil {
+                return newAppError(GetEVMBalanceError, err)
+        }
+        nativeBalance, _ := tmpNativeBalance.Float64()
+        log.Printf("Your %v address: %v, %v: %v\n", evmNetwork, acc.address.String(), nativeTokenName, nativeBalance)
+        evmAddress := acc.address
+        var res string
+        resInBytes, err := promptInput(
+                fmt.Sprintf("Un-shield to the following address: %v. Continue? (y/n)", evmAddress.String()),
+                &res)
+        if err != nil {
+                return newAppError(UserInputError, err)
+        }
+        res = string(resInBytes)
+        if !strings.Contains(res, "y") && !strings.Contains(res, "Y") {
+                resInBytes, err = promptInput(
+                        fmt.Sprintf("Enter the address you want to un-shield to"),
+                        &res)
+                if err != nil {
+                        return newAppError(UserInputError, err)
+                }
+                res = string(resInBytes)
+                if !isValidEVMAddress(res) {
+                        return newAppError(InvalidExternalAddressError)
+                }
+                evmAddress = common.HexToAddress(res)
+        }
+        log.Printf("[STEP 1] FINISHED!\n\n")
+
+        log.Println("[STEP 2] RETRIEVE THE BURN PROOF")
+        for {
+                burnProof, err := cfg.incClient.GetUnifiedBurnProof(incTxHash)
+                if burnProof == nil || err != nil {
+                        time.Sleep(40 * time.Second)
+                        log.Println("Wait for the burn proof!")
+                } else {
+                        log.Println("Had the burn proof!!!")
+                        break
+                }
+        }
+        log.Printf("[STEP 2 FINISHED!\n\n")
+
+        log.Println("[STEP 3] SUBMIT THE BURN PROOF TO THE SC")
+        _, err = acc.UnifiedUnShield(incTxHash, 0, 0, evmNetworkID)
+        if err != nil {
+                return newAppError(EVMWithdrawError, err)
+        }
+        log.Printf("[STEP 3] FINISHED!\n\n")
+
+        return nil
+}
+
+// unShield withdraws an EVM token (ETH/BNB/ERC20/BEP20) from the Incognito chain.
 func unShield(c *cli.Context) error {
 	fmt.Println(unShieldMessage)
 	yesNoPrompt("Do you want to continue?")
@@ -284,7 +387,15 @@ func unShield(c *cli.Context) error {
 	if !isValidTokenID(incTokenIDStr) {
 		return newAppError(InvalidTokenIDError)
 	}
-	evmTokenIDStr, evmNetworkID, err := getEVMTokenIDIncTokenID(incTokenIDStr)
+
+	tempIncTokenIDStr := incTokenIDStr
+	if incTokenIDStr == "26df4d1bca9fd1a8871a24b9b84fc97f3dd62ca8809975c6d971d1b79d1d9f31"	{
+		log.Println("DE-UNIFICATION")
+		tempIncTokenIDStr = "b3586e4d68932427ce1daecb25a602811059f1d20751f4e3dd8be2a08c17affd"
+	}
+
+	evmTokenIDStr, evmNetworkID, err := getEVMTokenIDIncTokenID(tempIncTokenIDStr)
+
 	if err != nil {
 		return newAppError(IncognitoTokenIDToEVMTokenIDError, err)
 	}

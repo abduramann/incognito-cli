@@ -899,6 +899,80 @@ func (acc EVMAccount) ApproveERC20(tokenAddress, approved common.Address, approv
 }
 
 // UnShield submits a burn proof of the given incTxHash to the smart contract to obtain back a public token.
+func (acc EVMAccount) UnifiedUnShield(incTxHash string, gasLimit, gasPrice uint64, evmNetworkID int) (*common.Hash, error) {
+        prefix := "[UnShield]"
+
+        evmClient, vaultAddress := getEVMClientAndVaultAddress(evmNetworkID)
+
+        // load the vault instance
+        v, err := vault.NewVault(vaultAddress, evmClient)
+        if err != nil {
+                return nil, err
+        }
+
+        // retrieve the burn proof from the incTxHash
+        burnProofResult, err := cfg.incClient.GetUnifiedBurnProof(incTxHash)
+        if err != nil {
+                return nil, err
+        }
+        burnProof, err := incclient.DecodeBurnProof(burnProofResult)
+        if err != nil {
+                return nil, err
+        }
+
+        // calculate gas price
+        var gasPriceBigInt *big.Int
+        if gasPrice == 0 {
+                gasPriceBigInt, err = estimateGasPrice(evmNetworkID)
+                if err != nil {
+                        return nil, fmt.Errorf("cannot get gasPriceBigInt price")
+                }
+        } else {
+                gasPriceBigInt = new(big.Int).SetUint64(gasPrice)
+        }
+        if gasLimit == 0 {
+                gasLimit, err = acc.estimateWithdrawalGas(burnProof, evmNetworkID)
+                if err != nil {
+                        return nil, err
+                }
+        }
+        txFee, _ := getSynthesizedAmount(new(big.Int).Mul(new(big.Int).SetUint64(gasLimit), gasPriceBigInt), uint64(nativeTokenDecimals)).Float64()
+        _, err = acc.checkSufficientBalance(common.HexToAddress(nativeToken), txFee, evmNetworkID)
+        if err != nil {
+                return nil, err
+        }
+        if askUser {
+                yesNoPrompt(fmt.Sprintf("%v GasPrice: %v gWei, TxFee: %v. Do you want to continue?",
+                        prefix, float64(gasPriceBigInt.Uint64())/math.Pow10(9), txFee))
+        }
+
+        auth, err := acc.newTransactionOpts(vaultAddress, gasPriceBigInt.Uint64(), gasLimit, 0, []byte{}, evmNetworkID)
+        tx, err := v.Withdraw(auth,
+                burnProof.Instruction,
+                burnProof.Heights[0],
+                burnProof.InstPaths[0],
+                burnProof.InstPathIsLefts[0],
+                burnProof.InstRoots[0],
+                burnProof.BlkData[0],
+                burnProof.SigIndices[0],
+                burnProof.SigVs[0],
+                burnProof.SigRs[0],
+                burnProof.SigSs[0])
+        if err != nil {
+                return nil, err
+        }
+
+        txHash := tx.Hash()
+        log.Printf("%v WithdrawalTx: %v\n", prefix, txHash.String())
+
+        if err := wait(txHash, evmNetworkID); err != nil {
+                return nil, err
+        }
+        return &txHash, nil
+}
+
+
+// UnShield submits a burn proof of the given incTxHash to the smart contract to obtain back a public token.
 func (acc EVMAccount) UnShield(incTxHash string, gasLimit, gasPrice uint64, evmNetworkID int) (*common.Hash, error) {
 	prefix := "[UnShield]"
 
